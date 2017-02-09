@@ -8,34 +8,62 @@ defmodule Gen do
   def create_layers([head | tail], state) do
     {_x,y} = parse_dimensions(head)
     {rows, tail} = Enum.split(tail, y)
-    create_layers(tail, %{state | layers: [parse_layer(rows) | state.layers]})
+    create_layers(tail, %{state | layers: [parse_layer(rows, y) | state.layers]})
   end
   def create_layers([], state) do
     %{state | layers: Enum.reverse(state.layers)}
   end
 
-  def parse_layer(rows) do
+  def parse_layer(rows, length) do
     rows
     |> Enum.reverse
     |> Enum.zip(1..100000)
-    |> Enum.map(&parse_row/1)
+    |> Enum.map(fn row -> parse_row(row, length) end)
   end
 
-  def parse_row({data, idx}) do
+  def parse_row({data, idx}, length) do
     data
     |> String.split("", trim: true)
+    |> align(idx)
+    |> add_turn(idx, length)
     |> group
     |> Enum.map(fn group -> to_lua(group, length(group)) end)
     |> trace
   end
 
+  def align(data, idx) do
+    case rem(idx, 2) == 0 do
+      true -> Enum.reverse(data)
+      false -> data
+    end
+  end
+
+  def add_turn(data, length, length) do
+    List.update_at(data, -1, fn _slot -> "H" end)
+  end
+  def add_turn(data, idx, _length) do
+    case rem(idx, 2) == 0 do
+      true -> List.update_at(data, -1, fn _slot -> "R" end)
+      false -> List.update_at(data, -1, fn _slot -> "L" end)
+    end
+  end
+
   def to_lua(["0"], 1) do
     ["dig()\n"]
+  end
+  def to_lua(["R"], 1) do
+    "R"
+  end
+  def to_lua(["L"], 1) do
+    "L"
+  end
+  def to_lua(["H"], 1) do
+    "H"
   end
   def to_lua([slot], 1) when is_binary(slot) do
     ["place(", slot, ")\n"]
   end
-  def to_lua(slots, length) do
+  def to_lua(slots, _length) do
     slots
   end
 
