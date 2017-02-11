@@ -83,6 +83,19 @@ defmodule Gen do
     slots
   end
 
+  def lua_fun_dig() do
+    ["function dig()\n",
+     "turtle.dig()\n",
+     "turtle.forward()\n",
+     "end\n"]
+  end
+  def lua_fun_dig_right() do
+    ["function digRight()\n",
+     "turtle.turnRight()\n",
+     "dig()\n",
+     "turtle.turnRight()\n",
+     "end\n"]
+  end
   def lua_fun_turn_around() do
     ["function turnAround()\n",
      "turtle.turnLeft()\n",
@@ -97,12 +110,6 @@ defmodule Gen do
      "turtle.select(slot)\n",
      "turtle.place()\n",
      "turnAround()\n",
-     "end\n"]
-  end
-  def lua_fun_dig() do
-    ["function dig()\n",
-     "turtle.dig()\n",
-     "turtle.forward()\n",
      "end\n"]
   end
 
