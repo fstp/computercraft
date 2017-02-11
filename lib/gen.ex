@@ -2,49 +2,65 @@ defmodule Gen do
   def main do
     File.read!("blueprint.txt")
     |> String.split("\n", trim: true)
-    |> create_layers(%{layers: []})
+    |> create_layers(%{layers: []}, 1)
   end
 
-  def create_layers([head | tail], state) do
-    {_x,y} = parse_dimensions(head)
-    {rows, tail} = Enum.split(tail, y)
-    create_layers(tail, %{state | layers: [parse_layer(rows, y) | state.layers]})
+  def create_layers([head | tail], state, depth) do
+    {_x, length} = parse_dimensions(head)
+    {rows, tail} = Enum.split(tail, length)
+    create_layers(
+      tail,
+      %{state | layers: [parse_layer(rows, length, depth) | state.layers]},
+      depth+1)
   end
-  def create_layers([], state) do
+  def create_layers([], state, _depth) do
     %{state | layers: Enum.reverse(state.layers)}
   end
 
-  def parse_layer(rows, length) do
+  def parse_layer(rows, length, depth) do
     rows
-    |> Enum.reverse
+    |> align_rows(depth)
     |> Enum.zip(1..100000)
-    |> Enum.map(fn row -> parse_row(row, length) end)
+    |> Enum.map(fn row -> parse_row(row, length, depth) end)
+    |> dprint("")
   end
 
-  def parse_row({data, idx}, length) do
+  def align_rows(rows, depth) do
+    case rem(depth, 2) == 0 do
+      true -> rows
+      false -> Enum.reverse(rows)
+    end
+  end
+
+  def parse_row({data, idx}, length, depth) do
     data
     |> String.split("", trim: true)
-    |> align(idx)
-    |> add_turn(idx, length)
+    |> align_slots(idx)
+    |> add_turn(idx, length, depth)
     |> group
     |> Enum.map(fn group -> to_lua(group, length(group)) end)
     |> trace
   end
 
-  def align(data, idx) do
+  def align_slots(data, idx) do
     case rem(idx, 2) == 0 do
-      true -> Enum.reverse(data)
-      false -> data
+      true ->
+        Enum.reverse(data)
+      false ->
+        data
     end
   end
 
-  def add_turn(data, length, length) do
-    List.update_at(data, -1, fn _slot -> "H" end)
+  def add_turn(data, length, length, _depth) do
+    List.update_at(data, -1, fn slot -> slot <> "H" end)
   end
-  def add_turn(data, idx, _length) do
-    case rem(idx, 2) == 0 do
-      true -> List.update_at(data, -1, fn _slot -> "R" end)
-      false -> List.update_at(data, -1, fn _slot -> "L" end)
+  def add_turn(data, idx, _length, depth) do
+    # TODO(john) refactor into a function, describe better why
+    case rem(idx, 2) != rem(depth, 2) do
+      true ->
+        List.update_at(data, -1, fn slot -> slot <> "R" end)
+      false ->
+        List.update_at(data, -1, fn slot -> slot <> "L" end)
     end
   end
 
@@ -113,11 +129,27 @@ defmodule Gen do
     {x,y}
   end
 
-  def trace(args) when is_binary(args) do
-    IO.puts args
+  def trace(args, opts \\ :none)
+  def trace(args, opts) when is_binary(args) do
+    case opts do
+      :none ->
+        IO.puts args
+      :newline ->
+        IO.puts args <> "\n"
+    end
     args
   end
-  def trace(args) do
-    IO.inspect args
+  def trace(args, opts) do
+    case opts do
+      :none ->
+        IO.inspect args
+      :newline ->
+        IO.puts "#{inspect args}\n"
+    end
+  end
+
+  def dprint(any, msg) do
+    IO.puts msg
+    any
   end
 end
