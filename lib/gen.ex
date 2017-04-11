@@ -1,8 +1,11 @@
 defmodule Gen do
   def main do
-    File.read!("blueprint.txt")
+    layers = File.read!("blueprint.txt")
     |> String.split("\n", trim: true)
     |> create_layers(%{layers: []}, 1)
+    
+    IO.puts lua_functions
+    IO.puts layers.layers
   end
 
   def create_layers([head | tail], state, depth) do
@@ -22,7 +25,6 @@ defmodule Gen do
     |> align_rows(depth)
     |> Enum.zip(1..100000)
     |> Enum.map(fn row -> parse_row(row, length, depth) end)
-    |> dprint("")
   end
 
   def align_rows(rows, depth) do
@@ -39,7 +41,7 @@ defmodule Gen do
     |> add_turn(idx, length, depth)
     |> group
     |> Enum.map(fn group -> to_lua(group, length(group)) end)
-    |> trace
+    # |> trace
   end
 
   def align_slots(data, idx) do
@@ -52,35 +54,49 @@ defmodule Gen do
   end
 
   def add_turn(data, length, length, _depth) do
-    List.update_at(data, -1, fn slot -> slot <> "H" end)
+    List.update_at(data, -1, fn slot -> [slot, "H"] end)
   end
   def add_turn(data, idx, _length, depth) do
     # TODO(john) refactor into a function, describe better why
     case rem(idx, 2) != rem(depth, 2) do
       true ->
-        List.update_at(data, -1, fn slot -> slot <> "R" end)
+        List.update_at(data, -1, fn slot -> [slot, "R"] end)
       false ->
-        List.update_at(data, -1, fn slot -> slot <> "L" end)
+        List.update_at(data, -1, fn slot -> [slot, "L"] end)
     end
   end
 
   def to_lua(["0"], 1) do
     ["dig()\n"]
   end
-  def to_lua(["R"], 1) do
-    "R"
-  end
-  def to_lua(["L"], 1) do
-    "L"
-  end
-  def to_lua(["H"], 1) do
-    "H"
-  end
   def to_lua([slot], 1) when is_binary(slot) do
-    ["place(", slot, ")\n"]
+    ["fill(", slot, ")\n"]
   end
-  def to_lua(slots, _length) do
-    slots
+  def to_lua([[slot, "R"]], 1) do
+    ["digRight(", slot, ")\n"]
+  end
+  def to_lua([[slot, "L"]], 1) do
+    ["digLeft(", slot, ")\n"]
+  end
+  def to_lua([[slot, "H"]], 1) do
+    ["down(", slot, ")\n"]
+  end
+  def to_lua([head | _tail], length) do
+    ["for i=1,", Integer.to_string(length), " do\n",
+     to_lua([head], 1),
+     "end\n"]
+  end
+
+  def lua_functions() do
+    [lua_fun_dig(),
+     lua_fun_turn_around(),
+     lua_fun_refill(),
+     lua_fun_refill_place(),
+     lua_fun_refill_placeUp(),
+     lua_fun_down(),
+     lua_fun_dig_right(),
+     lua_fun_dig_left(),
+     lua_fun_fill()]
   end
 
   def lua_fun_dig() do
@@ -89,26 +105,81 @@ defmodule Gen do
      "turtle.forward()\n",
      "end\n"]
   end
-  def lua_fun_dig_right() do
-    ["function digRight()\n",
-     "turtle.turnRight()\n",
-     "dig()\n",
-     "turtle.turnRight()\n",
-     "end\n"]
-  end
   def lua_fun_turn_around() do
     ["function turnAround()\n",
      "turtle.turnLeft()\n",
      "turtle.turnLeft()\n",
      "end\n"]
   end
-  def lua_fun_place() do
+  def lua_fun_refill() do
+    ["function refill(slot)\n",
+     "if turtle.getItemCount(slot) == 1 then\n",
+     "local to = turtle.getItemDetail(slot)\n",
+     "for i=1,16 do\n",
+     "if i ~= slot then\n",
+     "local from = turtle.getItemDetail(i)\n",
+     "if from and from.name == to.name then\n",
+     "turtle.select(i)\n",
+     "turtle.transferTo(slot)\n",
+     "end\n",
+     "end\n",
+     "end\n",
+     "end\n",
+     "end\n"]
+  end
+  def lua_fun_refill_place() do
     ["function place(slot)\n",
-     "turtle.dig()\n",
-     "turtle.forward()\n",
-     "turnAround()\n",
+     "refill(slot)\n",
      "turtle.select(slot)\n",
      "turtle.place()\n",
+     "end\n"]
+  end
+  def lua_fun_refill_placeUp() do
+    ["function placeUp(slot)\n",
+     "refill(slot)\n",
+     "turtle.select(slot)\n",
+     "turtle.placeUp()\n",
+     "end\n"]
+  end
+  def lua_fun_down() do
+    ["function down(slot)\n",
+     "turtle.digDown()\n",
+     "turtle.down()\n",
+     "turnAround()\n",
+     "if slot ~= 0 then\n",
+     "placeUp(slot)\n",
+     "end\n",
+     "end\n"]
+  end
+  def lua_fun_dig_right() do
+    ["function digRight(slot)\n",
+     "turtle.turnRight()\n",
+     "dig()\n",
+     "turtle.turnRight()\n",
+     "if slot ~= 0 then\n",
+     "turtle.turnRight()\n",
+     "place(slot)\n",
+     "turtle.turnLeft()\n",
+     "end\n",
+     "end\n"]
+  end
+  def lua_fun_dig_left() do
+    ["function digLeft(slot)\n",
+     "turtle.turnLeft()\n",
+     "dig()\n",
+     "turtle.turnLeft()\n",
+     "if slot ~= 0 then\n",
+     "turtle.turnLeft()\n",
+     "place(slot)\n",
+     "turtle.turnRight()\n",
+     "end\n",
+     "end\n"]
+  end
+  def lua_fun_fill() do
+    ["function fill(slot)\n",
+     "dig()\n",
+     "turnAround()\n",
+     "place(slot)\n",
      "turnAround()\n",
      "end\n"]
   end
