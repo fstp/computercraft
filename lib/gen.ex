@@ -23,7 +23,7 @@ defmodule Gen do
   def parse_layer(rows, length, depth) do
     rows
     |> align_rows(depth)
-    |> Enum.zip(1..100000)
+    |> Enum.zip(1..100000) # TODO(john) hackish, could be solved in a nicer way
     |> Enum.map(fn row -> parse_row(row, length, depth) end)
   end
 
@@ -224,10 +224,5 @@ defmodule Gen do
       :newline ->
         IO.puts "#{inspect args}\n"
     end
-  end
-
-  def dprint(any, msg) do
-    IO.puts msg
-    any
   end
 end
